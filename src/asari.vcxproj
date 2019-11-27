@@ -72,6 +72,13 @@
     </Link>
     <ClCompile>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
+      <ModuleDefinitionFile>win_exports.def</ModuleDefinitionFile>
+    </Link>
+    <ClCompile>
+    </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -79,6 +86,13 @@
     <Link>
     </Link>
     <ClCompile />
+    <ClCompile>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
+      <ModuleDefinitionFile>win_exports.def</ModuleDefinitionFile>
+    </Link>
     <ClCompile>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -90,6 +104,9 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
+      <ModuleDefinitionFile>win_exports.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -100,10 +117,27 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
+      <ModuleDefinitionFile>win_exports.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="asari_main.cpp" />
+    <ClCompile Include="platform\windows\win_app.cpp" />
+    <ClCompile Include="platform\windows\win_error.cpp" />
+    <ClCompile Include="platform\windows\win_ime.cpp" />
+    <ClCompile Include="platform\windows\win_main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="platform\app.h" />
+    <ClInclude Include="platform\ime.h" />
+    <ClInclude Include="platform\windows\win_app.h" />
+    <ClInclude Include="platform\windows\win_common.h" />
+    <ClInclude Include="platform\windows\win_error.h" />
+    <ClInclude Include="platform\windows\win_ime.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="win_exports.def" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
