@@ -7,6 +7,12 @@
     <IntDir>$(SolutionDir)..\build\$(PlatformTarget)\$(Configuration)\$(TargetName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup>
+    <ClCompile Condition="'$(Configuration)'=='Release'">
+      <PreprocessorDefinitions>
+        NDEBUG;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
+    </ClCompile>
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <SDLCheck>true</SDLCheck>
@@ -14,8 +20,22 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
+      <AdditionalIncludeDirectories>
+        $(SolutionDir);
+        %(AdditionalIncludeDirectories)
+      </AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>
+        STRICT;
+        NOMINMAX;
+        _CRT_STDIO_ISO_WIDE_SPECIFIERS;
+        %(PreprocessorDefinitions)
+      </PreprocessorDefinitions>
     </ClCompile>
     <Link>
+      <AdditionalLibraryDirectories>
+        $(SolutionDir)..\bin\$(PlatformTarget)\$(Configuration)\;
+        %(AdditionalLibraryDirectories)
+      </AdditionalLibraryDirectories>
       <SubSystem>Windows</SubSystem>
     </Link>
   </ItemDefinitionGroup>
