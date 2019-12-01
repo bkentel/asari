@@ -62,39 +62,18 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)..\bin\$(PlatformTarget)\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\build\$(PlatformTarget)\$(Configuration)\$(TargetName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
     </ClCompile>
     <Link>
     </Link>
-    <ClCompile>
-    </ClCompile>
-    <Link>
-      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
-      <ModuleDefinitionFile>win_exports.def</ModuleDefinitionFile>
-    </Link>
-    <ClCompile>
-    </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
     </ClCompile>
     <Link>
     </Link>
-    <ClCompile />
-    <ClCompile>
-    </ClCompile>
-    <Link>
-      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
-      <ModuleDefinitionFile>win_exports.def</ModuleDefinitionFile>
-    </Link>
-    <ClCompile>
-    </ClCompile>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -104,9 +83,6 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
-      <ModuleDefinitionFile>win_exports.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -117,27 +93,51 @@
     <Link>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
-      <ModuleDefinitionFile>win_exports.def</ModuleDefinitionFile>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>$(SrcRoot)platform\pch.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>$(SrcRoot)platform\pch.h</ForcedIncludeFiles>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;uuid.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
+      <ModuleDefinitionFile>$(PlatformRoot)win_exports.def</ModuleDefinitionFile>
+    </Link>
+    <Manifest>
+      <AdditionalManifestFiles>$(PlatformRoot)version.manifest</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="platform\windows\win_app.cpp" />
-    <ClCompile Include="platform\windows\win_error.cpp" />
-    <ClCompile Include="platform\windows\win_ime.cpp" />
-    <ClCompile Include="platform\windows\win_main.cpp" />
+    <ClCompile Include="$(SrcRoot)pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="$(PlatformRoot)win_app.cpp" />
+    <ClCompile Include="$(PlatformRoot)win_error.cpp" />
+    <ClCompile Include="$(PlatformRoot)win_ime.cpp" />
+    <ClCompile Include="$(PlatformRoot)win_main.cpp" />
+    <ClCompile Include="$(PlatformRoot)win_renderer_direct2d.cpp" />
+    <ClCompile Include="$(PlatformRoot)win_util.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="platform\app.h" />
-    <ClInclude Include="platform\ime.h" />
-    <ClInclude Include="platform\windows\win_app.h" />
-    <ClInclude Include="platform\windows\win_common.h" />
-    <ClInclude Include="platform\windows\win_error.h" />
-    <ClInclude Include="platform\windows\win_ime.h" />
+    <ClInclude Include="$(SrcRoot)app.h" />
+    <ClInclude Include="$(SrcRoot)ime.h" />
+    <ClInclude Include="$(SrcRoot)pch.h" />
+    <ClInclude Include="$(PlatformRoot)win_app.h" />
+    <ClInclude Include="$(PlatformRoot)win_common.h" />
+    <ClInclude Include="$(PlatformRoot)win_error.h" />
+    <ClInclude Include="$(PlatformRoot)win_ime.h" />
+    <ClInclude Include="$(PlatformRoot)win_pch.h" />
+    <ClInclude Include="$(PlatformRoot)win_renderer_direct2d.h" />
+    <ClInclude Include="$(PlatformRoot)win_util.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="win_exports.def" />
+    <None Include="$(PlatformRoot)win_exports.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="$(PlatformRoot)version.manifest" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
