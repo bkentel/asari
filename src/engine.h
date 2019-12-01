@@ -5,6 +5,10 @@
 namespace asr
 {
 
+struct engine_options
+{
+};
+
 class engine
 {
 public:
@@ -13,6 +17,7 @@ public:
     virtual void stop() = 0;
 };
 
-[[nodiscard]] std::unique_ptr<engine> make_engine();
+[[nodiscard]] std::unique_ptr<engine> make_engine(
+    engine_options options);
 
 } // namespace asr

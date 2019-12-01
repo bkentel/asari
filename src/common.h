@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #include <type_traits>
 #include <system_error>
 #include <exception>
@@ -7,8 +9,6 @@
 
 #include <cstdio>
 #include <cstdarg>
-
-#define ASR_NOINLINE __declspec(noinline)
 
 namespace asr
 {
@@ -82,22 +82,18 @@ void log_sink(log_data const& data, void*, ...) noexcept;
 
 #define ASR_ASSERT(x) ((x) || (::asr::assertion_handler(), true))
 
-#define ASR_ABORT_UNREACHABLE() (always_false || (::asr::fail_fast(), true))
+#define ASR_ABORT_UNREACHABLE() (::asr::always_false || (::asr::fail_fast(), true))
 
 #define ASR_DISCARD_RESULT (void)
 
-#define ASR_APPEND_IMPL(x, y) x ## y
-
-#define ASR_APPEND(x, y) ASR_APPEND_IMPL(x, y)
-
-#if defined(_MSC_VER)
+#if defined(ASR_COMPILER_MSVC)
 #   define ASR_LOG_MESSAGE(fmt, ...) \
     { \
         using namespace std::string_view_literals; \
         static constexpr ::asr::log_data ASR_APPEND(data, __LINE__) {ASR_APPEND(fmt, sv)}; \
         ::asr::log_sink(ASR_APPEND(data, __LINE__), nullptr, __VA_ARGS__); \
     } \
-    (::asr::always_false && (::_printf_p((fmt), __VA_ARGS__), 0))
+    (::asr::always_false && (::printf(fmt, __VA_ARGS__), 0))
 #else
 #   define ASR_LOG_MESSAGE(fmt, ...) (void)
 #endif

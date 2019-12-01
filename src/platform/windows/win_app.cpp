@@ -2,100 +2,17 @@
 
 #include "win_common.h"
 #include "win_ime.h"
+#include "win_error.h"
+#include "win_util.h"
 
 #include "common.h"
+#include "string_utils.h"
 
 namespace asr::win
 {
 
 namespace
 {
-
-constexpr bool to_hex(
-      char*       const out
-    , size_t      const out_size
-    , char const* const data
-    , size_t      const data_size) noexcept
-{
-    constexpr char table[] {
-          '0', '1', '2', '3'
-        , '4', '5', '6', '7'
-        , '8', '9', 'A', 'B'
-        , 'C', 'D', 'E', 'F'
-    };
-
-    std::string_view const sv {data, data_size};
-
-    auto it   = out;
-    auto last = it + out_size;
-
-    for (auto const c : sv)
-    {
-        if (it == last || it + 1 == last)
-        {
-            return false;
-        }
-
-        *it++ = table[(c & 0xF0) >> 4];
-        *it++ = table[(c & 0x0F) >> 0];
-    }
-
-    return true;
-}
-
-constexpr bool widen(
-      wchar_t*    const out
-    , size_t      const out_size
-    , char const* const data
-    , size_t      const data_size) noexcept
-{
-    std::string_view const sv {data, data_size};
-
-    auto it   = out;
-    auto last = it + out_size;
-
-    for (auto const c : sv)
-    {
-        if (it == last)
-        {
-            return false;
-        }
-
-        auto const w = static_cast<wchar_t>(c & 0x7F);
-
-        *it++ = w ? w : L' ';
-    }
-
-    return true;
-}
-
-template <typename T>
-auto to_hex(T const& bytes) noexcept
-{
-    std::array<char, sizeof(T) * 2 + 1> result {};
-
-    to_hex(
-          data(result)
-        , size(result)
-        , reinterpret_cast<char const*>(std::addressof(bytes))
-        , sizeof(bytes));
-
-    return result;
-}
-
-template <typename Container>
-std::wstring widen(Container const& narrow) noexcept
-{
-    using std::size;
-    using std::data;
-
-    std::wstring result;
-    result.resize(narrow.size());
-
-    widen(data(result), size(result), data(narrow), size(narrow));
-
-    return result;
-}
 
 void init_opengl()
 {
@@ -209,11 +126,37 @@ void init_opengl()
     }
 }
 
+void register_for_input()
+{
+    RAWINPUTDEVICE dev[2] {};
+
+    // HID mouse
+    dev[0].usUsagePage = USHORT {0x01};
+    dev[0].usUsage     = USHORT {0x02};
+    dev[0].dwFlags     = 0; //RIDEV_NOLEGACY;
+    dev[0].hwndTarget  = nullptr;
+
+    // HID keyboard
+    dev[1].usUsagePage = USHORT {0x01};
+    dev[1].usUsage     = USHORT {0x06};
+    dev[1].dwFlags     = 0; //RIDEV_NOLEGACY;
+    dev[1].hwndTarget  = nullptr;
+
+    if (!::RegisterRawInputDevices(dev, static_cast<UINT>(std::size(dev)), sizeof(RAWINPUTDEVICE)))
+    {
+        ASR_THROW(get_last_error(), "win", "RegisterRawInputDevices failed");
+    }
+}
+
 } // namespace
+
+void get_raw_input();
 
 application::application(application_options options)
     : m_input_manager(static_cast<text_input_manager*>(options.ime))
 {
+    auto const version = win_version();
+
     ASR_ASSERT(m_input_manager);
     ASR_ASSERT(options.on_ready);
 
@@ -224,7 +167,7 @@ application::application(application_options options)
     LUID id {};
     if (!::AllocateLocallyUniqueId(&id))
     {
-        ASR_THROW(std::errc::interrupted, "main", "AllocateLocallyUniqueId failed");
+        ASR_THROW(get_last_error(), "win", "AllocateLocallyUniqueId failed");
     }
 
     auto const string_id = widen(to_hex(id));
@@ -235,18 +178,19 @@ application::application(application_options options)
     wc.lpfnWndProc   = top_level_window_proc;
     wc.hInstance     = instance;
     wc.lpszClassName = string_id.data();
+    wc.hCursor       = reinterpret_cast<HCURSOR>(::LoadImageW(nullptr, MAKEINTRESOURCEW(32512), IMAGE_CURSOR, 0, 0, LR_SHARED | LR_DEFAULTSIZE));
 
     auto const atom = ::RegisterClassExW(&wc);
     if (!atom)
     {
-        ASR_THROW(std::errc::interrupted, "main", "RegisterClassExW failed");
+        ASR_THROW(get_last_error(), "win", "RegisterClassExW failed");
     }
 
     auto const window = ::CreateWindowExW(
-          0
+          version >= win8_1 ? WS_EX_NOREDIRECTIONBITMAP : 0
         , wc.lpszClassName
         , L"asari"
-        , WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS //WS_OVERLAPPED | WS_VISIBLE | WS_MINIMIZEBOX | WS_SYSMENU
+        , WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_VISIBLE
         , CW_USEDEFAULT
         , CW_USEDEFAULT
         , CW_USEDEFAULT
@@ -261,7 +205,12 @@ application::application(application_options options)
         std::rethrow_exception(std::move(m_window_proc_error));
     }
 
-    ASR_ASSERT(window);
+    if (!window)
+    {
+        ASR_THROW(get_last_error(), "win", "CreateWindowExW failed");
+    }
+
+    register_for_input();
 
     ::ShowWindow(window, SW_SHOW);
     ::UpdateWindow(window);
@@ -275,7 +224,7 @@ application::application(application_options options)
 
         if (result == -1)
         {
-            ASR_THROW(std::errc::interrupted, "main_window", "GetMessageW failed");
+            ASR_THROW(get_last_error(), "win", "GetMessageW failed");
         }
 
         if (msg.hwnd != window)
@@ -290,7 +239,7 @@ application::application(application_options options)
             auto e = std::move(m_window_proc_error);
             m_window_proc_error = std::exception_ptr {};
 
-            ASR_THROW(std::move(e), "main_window", "exception in window proc");
+            ASR_THROW(std::move(e), "win", "exception in window proc");
         }
     }
 
@@ -400,6 +349,64 @@ std::optional<LRESULT> application::window_proc<WM_SETCURSOR>(WPARAM, LPARAM)
     return std::nullopt;
 }
 
+void on_raw_mouse(RAWINPUTHEADER const&, RAWMOUSE const&)
+{
+}
+
+void on_raw_keyboard(RAWINPUTHEADER const&, RAWKEYBOARD const& kb)
+{
+    ASR_LOGA("%hX %hX %hX %lX", kb.MakeCode, kb.VKey, kb.Flags, kb.ExtraInformation);
+}
+
+template <>
+std::optional<LRESULT> application::window_proc<WM_INPUT>(WPARAM const wParam, LPARAM const lParam)
+{
+    switch (wParam & 0xFF)
+    {
+    case RIM_INPUT:
+        break;
+    case RIM_INPUTSINK:
+        break;
+    default:
+        ASR_ABORT_UNREACHABLE();
+        break;
+    }
+
+    alignas(16) char buffer[64] {};
+
+    UINT size = sizeof(buffer);
+    auto const result = ::GetRawInputData(
+          reinterpret_cast<HRAWINPUT>(lParam)
+        , RID_INPUT
+        , buffer
+        , &size
+        , sizeof(RAWINPUTHEADER));
+
+    if (result == static_cast<UINT>(-1))
+    {
+        ASR_ABORT_UNREACHABLE();
+    }
+
+    auto const header = *reinterpret_cast<RAWINPUTHEADER const*>(buffer);
+    auto const offset = buffer + sizeof(RAWINPUTHEADER);
+
+    switch (header.dwType)
+    {
+    case RIM_TYPEMOUSE:
+        on_raw_mouse(header, *reinterpret_cast<RAWMOUSE const*>(offset));
+        break;
+    case RIM_TYPEKEYBOARD:
+        on_raw_keyboard(header, *reinterpret_cast<RAWKEYBOARD const*>(offset));
+        break;
+    case RIM_TYPEHID:
+        break;
+    default:
+        ASR_ABORT_UNREACHABLE();
+    }
+
+    return std::nullopt;
+}
+
 LRESULT application::window_proc(
       UINT   const message
     , WPARAM const wParam
@@ -410,7 +417,13 @@ try
 
     #define ASR_DISPATCH_MSG(x) case x : return window_proc<x>(wParam, lParam)
 
-    ASR_LOGA("[win] message %u : %zx %zx", message, wParam, lParam);
+    if (message != WM_INPUT && message != WM_NCHITTEST && message != WM_SETCURSOR && message != WM_MOUSEMOVE && message != WM_NCMOUSEMOVE)
+    {
+        ASR_LOGA("[win] message % 5u : 0x%p 0x%p"
+            , message
+            , reinterpret_cast<void*>(wParam)
+            , reinterpret_cast<void*>(lParam));
+    }
 
     auto const result = std::invoke([&]() -> std::optional<LRESULT> {
         switch (message)
@@ -422,6 +435,7 @@ try
         ASR_DISPATCH_MSG(WM_ACTIVATE);
         ASR_DISPATCH_MSG(WM_CLOSE);
         ASR_DISPATCH_MSG(WM_SETCURSOR);
+        ASR_DISPATCH_MSG(WM_INPUT);
         default:
             break;
         }
@@ -472,14 +486,14 @@ void intial_setup()
         hr != S_OK)
     {
         ASR_ASSERT(hr != S_FALSE);
-        ASR_THROW(std::errc::interrupted, "main", "CoInitializeEx failed");
+        ASR_THROW(win::make_com_error(hr), "win", "CoInitializeEx failed");
     }
 
     IGlobalOptions* options {};
     if (auto const hr = ::CoCreateInstance(CLSID_GlobalOptions, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&options));
         FAILED(hr))
     {
-        ASR_THROW(std::errc::interrupted, "main", "CoCreateInstance for IGlobalOptions failed");
+        ASR_THROW(win::make_com_error(hr), "main", "CoCreateInstance for IGlobalOptions failed");
     }
 
     options->Set(COMGLB_EXCEPTION_HANDLING, COMGLB_EXCEPTION_DONOT_HANDLE_ANY);

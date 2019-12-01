@@ -15,11 +15,10 @@ namespace
 class engine_impl final : public engine
 {
 public:
-    engine_impl()
+    explicit engine_impl(engine_options options)
+        : m_options(options)
+        , m_thread([&]() noexcept { main(); })
     {
-        m_thread = std::thread([&]() noexcept {
-            run();
-        });
     }
 
     ~engine_impl()
@@ -54,14 +53,8 @@ private:
         m_running = false;
     }
 
-    void run()
+    void main() noexcept
     {
-        {
-            std::scoped_lock const lock {m_mutex};
-            ASR_ASSERT(!m_running);
-            m_running = true;
-        }
-
         for (;;)
         {
             std::unique_lock lock {m_mutex};
@@ -78,18 +71,19 @@ private:
     }
 private:
     mutable std::mutex      m_mutex;
-    std::thread             m_thread;
     std::condition_variable m_cv;
-    bool                    m_running = false;
+    bool                    m_running = true;
+    engine_options          m_options;
+    std::thread             m_thread;
 };
 
 } // namespace
 
 engine::~engine() = default;
 
-std::unique_ptr<engine> make_engine()
+std::unique_ptr<engine> make_engine(engine_options options)
 {
-    return std::make_unique<engine_impl>();
+    return std::make_unique<engine_impl>(std::move(options));
 }
 
 } // namespace asr

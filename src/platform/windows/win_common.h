@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #if !defined(STRICT)
 #   define STRICT
 #endif
