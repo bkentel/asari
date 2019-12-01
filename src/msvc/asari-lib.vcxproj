@@ -62,8 +62,6 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <OutDir>$(SolutionDir)..\bin\$(PlatformTarget)\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)..\build\$(PlatformTarget)\$(Configuration)\$(TargetName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -97,13 +95,30 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>$(SrcRoot)pch.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>$(SrcRoot)pch.h</ForcedIncludeFiles>
+    </ClCompile>
+    <Link>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="common.h" />
-    <ClInclude Include="engine.h" />
+    <ClInclude Include="$(SrcRoot)common.h" />
+    <ClInclude Include="$(SrcRoot)config.h" />
+    <ClInclude Include="$(SrcRoot)engine.h" />
+    <ClInclude Include="$(SrcRoot)pch.h" />
+    <ClInclude Include="$(SrcRoot)renderer.h" />
+    <ClInclude Include="$(SrcRoot)string_utils.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="engine.cpp" />
-    <ClCompile Include="main.cpp" />
+    <ClCompile Include="$(SrcRoot)engine.cpp" />
+    <ClCompile Include="$(SrcRoot)main.cpp" />
+    <ClCompile Include="$(SrcRoot)pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="$(SrcRoot)renderer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

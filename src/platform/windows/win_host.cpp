@@ -1,12 +1,10 @@
-#define WIN32_LEAN_AND_MEAN
-#define STRICT
-#define NOMINMAX
-
 #define _CONTAINER_DEBUG_LEVEL 0
 #define _ITERATOR_DEBUG_LEVEL  0
 
-#include <sdkddkver.h>
-#include <Windows.h>
+#include "win_common.h"
+
+#include "win_main.h"
+
 #include <WerApi.h>
 #include <Psapi.h>
 
@@ -21,13 +19,12 @@ using namespace std::string_view_literals;
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
-extern wchar_t const* const stub_target;
-extern char    const* const stub_entry_point;
+extern "C" int __cdecl _except_handler3();
+extern "C" int __cdecl _except_handler4();
 
-wchar_t const* const stub_target      = LR"(asari.dll)";
-char    const* const stub_entry_point = "dll_main";
+constexpr auto stub_target = LR"(asari.dll)";
 
-using stub_entry_t = int (__stdcall*)(wchar_t const*);
+asr::win::main_module_interface module_interface {};
 
 //------------------------------------------------------------------------------
 [[noreturn]] void fatal_exit()
@@ -41,10 +38,19 @@ using stub_entry_t = int (__stdcall*)(wchar_t const*);
 }
 
 //------------------------------------------------------------------------------
-LONG __stdcall exception_filter(EXCEPTION_POINTERS*)
+LONG __stdcall exception_filter(EXCEPTION_POINTERS* const e)
 {
-    fatal_exit();
-    //return EXCEPTION_CONTINUE_SEARCH;
+    if (::IsDebuggerPresent())
+    {
+        __debugbreak();
+    }
+
+    if (module_interface.fatal_error)
+    {
+        module_interface.fatal_error(e);
+    }
+
+    return EXCEPTION_CONTINUE_SEARCH;
 }
 
 //------------------------------------------------------------------------------
@@ -194,8 +200,8 @@ int launch_target()
         fatal_exit();
     }
 
-    auto const entry = reinterpret_cast<stub_entry_t>(reinterpret_cast<uintptr_t>(
-        ::GetProcAddress(module, stub_entry_point)));
+    auto const entry = reinterpret_cast<asr::win::load_main_module_t>(reinterpret_cast<uintptr_t>(
+        ::GetProcAddress(module, asr::win::load_main_module)));
 
     if (!entry)
     {
@@ -204,7 +210,14 @@ int launch_target()
 
     __try
     {
-        auto const result = entry(get_command_line());
+        module_interface.version = asr::win::module_version::current;
+
+        if (auto const e = entry(&module_interface))
+        {
+            return e;
+        }
+
+        auto const result = module_interface.dll_main(get_command_line());
 
         if (!::FreeLibrary(module))
         {
@@ -213,9 +226,75 @@ int launch_target()
 
         return result;
     }
-    __except(EXCEPTION_EXECUTE_HANDLER)
+    __except (EXCEPTION_EXECUTE_HANDLER)
     {
         fatal_exit();
+    }
+}
+
+void set_crash_on_crashes()
+{
+    HMODULE module {};
+    if (!::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT , L"kernel32.dll", &module))
+    {
+        return;
+    }
+
+    auto const get = ::GetProcAddress(module, "GetProcessUserModeExceptionPolicy");
+    auto const set = ::GetProcAddress(module, "SetProcessUserModeExceptionPolicy");
+
+    if (!get || !set)
+    {
+        return;
+    }
+
+    using get_t = BOOL (__stdcall*)(LPDWORD lpFlags);
+    using set_t = BOOL (__stdcall*)(DWORD dwFlags);
+
+    auto const get_flags = static_cast<get_t>(reinterpret_cast<void*>(get));
+    auto const set_flags = static_cast<set_t>(reinterpret_cast<void*>(set));
+
+    DWORD flags {};
+    if (!get_flags(&flags))
+    {
+        return;
+    }
+
+    constexpr DWORD EXCEPTION_SWALLOWING = 0x1;
+
+    set_flags(flags & ~EXCEPTION_SWALLOWING);
+}
+
+void hook_unhandled_exception_filter()
+{
+    auto const p = &SetUnhandledExceptionFilter;
+
+#ifdef _M_IX86
+    // Code for x86:
+    // 33 C0                xor         eax,eax
+    // C2 04 00             ret         4
+    constexpr unsigned char code[] {0x33, 0xC0, 0xC2, 0x04, 0x00};
+#elif _M_X64
+    // 33 C0                xor         eax,eax
+    // C3                   ret
+    constexpr unsigned char code[] {0x33, 0xC0, 0xC3};
+#else
+#   error "code only works for x86 and x64"
+#endif
+
+    __try
+    {
+        size_t written {};
+        (void)::WriteProcessMemory(
+            ::GetCurrentProcess()
+          , p
+          , code
+          , sizeof(code)
+          , &written);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        // best effort -- ignore access violations
     }
 }
 
@@ -226,7 +305,12 @@ void set_process_mitigations()
 
     ::SetErrorMode(SEM_FAILCRITICALERRORS);
 
+    ::HeapSetInformation(nullptr, HEAP_INFORMATION_CLASS::HeapEnableTerminationOnCorruption, nullptr, 0);
+
     ::SetUnhandledExceptionFilter(exception_filter);
+    hook_unhandled_exception_filter();
+
+    set_crash_on_crashes();
 
     ::SetSearchPathMode(BASE_SEARCH_PATH_PERMANENT | BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE);
     ::SetDllDirectoryW(L"");
@@ -241,7 +325,3 @@ int __stdcall main()
     auto const result = launch_target();
     ::TerminateProcess(::GetCurrentProcess(), static_cast<UINT>(result));
 }
-
-extern "C" int __cdecl _except_handler3();
-
-extern "C" int __cdecl _except_handler4();

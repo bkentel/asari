@@ -1,5 +1,6 @@
 #include "common.h"
 #include "engine.h"
+#include "renderer.h"
 
 #include "platform/ime.h"
 #include "platform/app.h"
@@ -10,7 +11,7 @@ namespace asr
 namespace
 {
 
-#if defined(_MSC_VER)
+#if defined(ASR_COMPILER_MSVC)
 #   define ASR_VFPRINTF(a, b, c) ::_vfprintf_l(a, b, nullptr, c)
 #else
 #   define ASR_VFPRINTF(a, b, c) ::vfprintf(a, b, c)
@@ -51,14 +52,17 @@ int main([[maybe_unused]] std::vector<std::string_view> const& args)
 
     intial_setup();
 
-    std::unique_ptr<engine> engine;
+    std::unique_ptr<engine>   engine;
+    std::unique_ptr<renderer> renderer;
 
     auto const ime = make_input_manager();
 
     application_options app_options {};
     app_options.ime = ime.get();
+
     app_options.on_ready = [&] {
-        engine = make_engine();
+        renderer = make_renderer({});
+        engine   = make_engine({});
     };
 
     auto const app = make_application(std::move(app_options));
