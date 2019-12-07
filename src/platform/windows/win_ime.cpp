@@ -153,7 +153,7 @@ HRESULT __stdcall text_input_manager_old::GetWnd(TsViewCookie vcView, HWND* phwn
 text_input_manager::text_input_manager()
     : m_old(*this)
 {
-    ::ImmDisableIME(-1);
+    ::ImmDisableIME(static_cast<DWORD>(-1));
 
     if (auto const hr = ::CoCreateInstance(
               CLSID_TF_ThreadMgr
