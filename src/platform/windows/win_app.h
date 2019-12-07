@@ -18,6 +18,10 @@ class application final
 {
 public:
     explicit application(application_options options);
+
+    void start() override;
+
+    renderer_backend& get_renderer_backend() const noexcept override;
 private:
     void init(HWND window) noexcept;
 
@@ -41,10 +45,12 @@ private:
         , LPARAM lParam) noexcept;
 
 private:
-    std::exception_ptr  m_window_proc_error;
-    text_input_manager* m_input_manager = nullptr;
-    HWND                m_window        = nullptr;
-    bool                m_initialized   = false;
+    std::exception_ptr                m_window_proc_error;
+    text_input_manager*               m_input_manager = nullptr;
+    application_observer*             m_observer      = nullptr;
+    HWND                              m_window        = nullptr;
+    std::unique_ptr<renderer_backend> m_renderer_backend;
+    bool                              m_initialized   = false;
 };
 
 } // namespace asr::win

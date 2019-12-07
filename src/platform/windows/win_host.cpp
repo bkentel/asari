@@ -26,6 +26,73 @@ constexpr auto stub_target = LR"(asari.dll)";
 
 asr::win::main_module_interface module_interface {};
 
+BOOL __stdcall GetProcessUserModeExceptionPolicy(LPDWORD lpFlags);
+BOOL __stdcall SetProcessUserModeExceptionPolicy(DWORD dwFlags);
+
+namespace asr::win
+{
+
+namespace
+{
+
+template <typename T, auto Result>
+struct dummy_api;
+
+template <typename R, typename... Args, auto Result>
+struct dummy_api<R __stdcall (Args...), Result>
+{
+    using type = R (__stdcall*)(Args...);
+    constexpr operator type() const noexcept
+    {
+        return &invoke;
+    }
+
+    constexpr static R __stdcall invoke(Args...)
+    {
+        return Result;
+    }
+};
+
+template <typename T, auto Fallback>
+T* get_function(HMODULE const module, char const* const function)
+{
+    auto const p = ::GetProcAddress(module, function);
+    if (!p)
+    {
+        return dummy_api<T, Fallback>();
+    }
+
+    return static_cast<T*>(reinterpret_cast<void*>(p));
+}
+
+inline auto GetThreadInformation              = decltype(&::GetThreadInformation) {};
+inline auto SetThreadInformation              = decltype(&::SetThreadInformation) {};
+inline auto GetProcessUserModeExceptionPolicy = decltype(&::GetProcessUserModeExceptionPolicy) {};
+inline auto SetProcessUserModeExceptionPolicy = decltype(&::SetProcessUserModeExceptionPolicy) {};
+inline auto GetProcessMitigationPolicy        = decltype(&::GetProcessMitigationPolicy) {};
+inline auto SetProcessMitigationPolicy        = decltype(&::SetProcessMitigationPolicy) {};
+
+void get_optional_apis()
+{
+    HMODULE module {};
+    ::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, L"kernel32.dll", &module);
+
+    #define ASR_GET_F(F, RESULT) F = get_function<decltype(::F), RESULT>(module, #F)
+
+    ASR_GET_F(GetThreadInformation,              FALSE);
+    ASR_GET_F(SetThreadInformation,              FALSE);
+    ASR_GET_F(GetProcessUserModeExceptionPolicy, FALSE);
+    ASR_GET_F(SetProcessUserModeExceptionPolicy, FALSE);
+    ASR_GET_F(GetProcessMitigationPolicy,        FALSE);
+    ASR_GET_F(SetProcessMitigationPolicy,        FALSE);
+
+    #undef ASR_GET_F
+}
+
+} // namespace
+
+} // namespace asr::win
+
 //------------------------------------------------------------------------------
 [[noreturn]] void fatal_exit()
 {
@@ -54,7 +121,7 @@ LONG __stdcall exception_filter(EXCEPTION_POINTERS* const e)
 }
 
 //------------------------------------------------------------------------------
-wchar_t const* get_command_line()
+[[nodiscard]] wchar_t const* get_command_line()
 {
     auto const original_command_line = ::GetCommandLineW();
 
@@ -87,7 +154,8 @@ struct virtual_memory_deleter
 
 using unique_memory = std::unique_ptr<char*, virtual_memory_deleter>;
 
-std::pair<wchar_t const*, unique_memory> get_target_full_path()
+[[nodiscard]] std::pair<wchar_t const*, unique_memory> get_target_full_path(
+    wchar_t const* const filename)
 {
     constexpr auto namespace_prefix = LR"(\\.\GLOBALROOT\)"sv;
     constexpr auto absolute_prefix  = LR"(\\?\)"sv;
@@ -177,12 +245,15 @@ std::pair<wchar_t const*, unique_memory> get_target_full_path()
         --path_root;
     }
 
-    for (auto it = stub_target; *it; ++it)
+    if (filename)
     {
-        *path_root++ = *it;
-    }
+        for (auto it = filename; *it; ++it)
+        {
+            *path_root++ = *it;
+        }
 
-    *path_root = L'\0';
+        *path_root = L'\0';
+    }
 
     return std::pair(data(path_buffer), unique_memory(buffer_pool));
 }
@@ -191,7 +262,7 @@ std::pair<wchar_t const*, unique_memory> get_target_full_path()
 int launch_target()
 {
     auto const module = std::invoke([] {
-        auto const [target, target_memory] = get_target_full_path();
+        auto const [target, target_memory] = get_target_full_path(stub_target);
         return ::LoadLibraryExW(target, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     });
 
@@ -232,43 +303,23 @@ int launch_target()
     }
 }
 
+//------------------------------------------------------------------------------
 void set_crash_on_crashes()
 {
-    HMODULE module {};
-    if (!::GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT , L"kernel32.dll", &module))
-    {
-        return;
-    }
-
-    auto const get = ::GetProcAddress(module, "GetProcessUserModeExceptionPolicy");
-    auto const set = ::GetProcAddress(module, "SetProcessUserModeExceptionPolicy");
-
-    if (!get || !set)
-    {
-        return;
-    }
-
-    using get_t = BOOL (__stdcall*)(LPDWORD lpFlags);
-    using set_t = BOOL (__stdcall*)(DWORD dwFlags);
-
-    auto const get_flags = static_cast<get_t>(reinterpret_cast<void*>(get));
-    auto const set_flags = static_cast<set_t>(reinterpret_cast<void*>(set));
-
     DWORD flags {};
-    if (!get_flags(&flags))
+    if (!asr::win::GetProcessUserModeExceptionPolicy(&flags))
     {
         return;
     }
 
     constexpr DWORD EXCEPTION_SWALLOWING = 0x1;
 
-    set_flags(flags & ~EXCEPTION_SWALLOWING);
+    asr::win::SetProcessUserModeExceptionPolicy(flags & ~EXCEPTION_SWALLOWING);
 }
 
+//------------------------------------------------------------------------------
 void hook_unhandled_exception_filter()
 {
-    auto const p = &SetUnhandledExceptionFilter;
-
 #ifdef _M_IX86
     // Code for x86:
     // 33 C0                xor         eax,eax
@@ -282,20 +333,31 @@ void hook_unhandled_exception_filter()
 #   error "code only works for x86 and x64"
 #endif
 
-    __try
-    {
-        size_t written {};
-        (void)::WriteProcessMemory(
-            ::GetCurrentProcess()
-          , p
-          , code
-          , sizeof(code)
-          , &written);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        // best effort -- ignore access violations
-    }
+    auto const handle = ::GetCurrentThread();
+
+    DWORD thread_policy = THREAD_DYNAMIC_CODE_ALLOW;
+    asr::win::SetThreadInformation(
+          handle
+        , THREAD_INFORMATION_CLASS::ThreadDynamicCodePolicy
+        , &thread_policy
+        , sizeof(thread_policy));
+
+    auto const p = &SetUnhandledExceptionFilter;
+
+    SIZE_T written {};
+    ::WriteProcessMemory(
+          ::GetCurrentProcess()
+        , p
+        , code
+        , sizeof(code)
+        , &written);
+
+    thread_policy = 0;
+    asr::win::SetThreadInformation(
+          handle
+        , THREAD_INFORMATION_CLASS::ThreadDynamicCodePolicy
+        , &thread_policy
+        , sizeof(thread_policy));
 }
 
 //------------------------------------------------------------------------------
@@ -310,6 +372,12 @@ void set_process_mitigations()
     ::SetUnhandledExceptionFilter(exception_filter);
     hook_unhandled_exception_filter();
 
+    PROCESS_MITIGATION_DYNAMIC_CODE_POLICY policy;
+    ::RtlSecureZeroMemory(&policy, sizeof(policy));
+    policy.ProhibitDynamicCode = 1;
+
+    asr::win::SetProcessMitigationPolicy(PROCESS_MITIGATION_POLICY::ProcessDynamicCodePolicy, &policy, sizeof(policy));
+
     set_crash_on_crashes();
 
     ::SetSearchPathMode(BASE_SEARCH_PATH_PERMANENT | BASE_SEARCH_PATH_ENABLE_SAFE_SEARCHMODE);
@@ -319,9 +387,126 @@ void set_process_mitigations()
 }
 
 //------------------------------------------------------------------------------
+int relaunch_protected()
+{
+    SIZE_T size {};
+    ::InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
+
+    alignas (16) char buffer[64];
+    ::RtlSecureZeroMemory(&buffer, sizeof(buffer));
+
+    auto const attribute_list = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(buffer);
+
+    ::InitializeProcThreadAttributeList(attribute_list, 1, 0, &size);
+
+    constexpr DWORD64 mitigations =
+          PROCESS_CREATION_MITIGATION_POLICY_DEP_ENABLE
+        | PROCESS_CREATION_MITIGATION_POLICY_SEHOP_ENABLE
+        | PROCESS_CREATION_MITIGATION_POLICY_HEAP_TERMINATE_ALWAYS_ON
+        | PROCESS_CREATION_MITIGATION_POLICY_BOTTOM_UP_ASLR_ALWAYS_ON
+        | PROCESS_CREATION_MITIGATION_POLICY_HIGH_ENTROPY_ASLR_ALWAYS_ON
+        | PROCESS_CREATION_MITIGATION_POLICY_STRICT_HANDLE_CHECKS_ALWAYS_ON
+        //| PROCESS_CREATION_MITIGATION_POLICY_WIN32K_SYSTEM_CALL_DISABLE_ALWAYS_ON
+        | PROCESS_CREATION_MITIGATION_POLICY_EXTENSION_POINT_DISABLE_ALWAYS_ON
+        | PROCESS_CREATION_MITIGATION_POLICY_FORCE_RELOCATE_IMAGES_ALWAYS_ON_REQ_RELOCS
+        | PROCESS_CREATION_MITIGATION_POLICY_PROHIBIT_DYNAMIC_CODE_ALWAYS_ON_ALLOW_OPT_OUT
+        | PROCESS_CREATION_MITIGATION_POLICY_CONTROL_FLOW_GUARD_ALWAYS_ON
+        //| PROCESS_CREATION_MITIGATION_POLICY_BLOCK_NON_MICROSOFT_BINARIES_ALWAYS_ON
+        //| PROCESS_CREATION_MITIGATION_POLICY_FONT_DISABLE_ALWAYS_ON
+        | PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_NO_REMOTE_ALWAYS_ON
+        //|PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_NO_LOW_LABEL_ALWAYS_ON
+        | PROCESS_CREATION_MITIGATION_POLICY_IMAGE_LOAD_PREFER_SYSTEM32_ALWAYS_ON;
+
+    auto mitigation_value = mitigations;
+
+    ::UpdateProcThreadAttribute(
+          attribute_list
+        , 0
+        , PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY
+        , &mitigation_value
+        , sizeof(mitigation_value)
+        , nullptr
+        , nullptr);
+
+    wchar_t title[] = L"asari";
+
+    STARTUPINFOEXW si;
+    ::RtlSecureZeroMemory(&si, sizeof(si));
+
+    si.StartupInfo.cb      = sizeof(si);
+    si.lpAttributeList     = attribute_list;
+    si.StartupInfo.lpTitle = title;
+
+    PROCESS_INFORMATION pi;
+    ::RtlSecureZeroMemory(&pi, sizeof(pi));
+
+    auto const [path, path_storage] = get_target_full_path(nullptr);
+
+    auto const ok = ::CreateProcessW(
+          path
+        , ::GetCommandLineW()
+        , nullptr
+        , nullptr
+        , FALSE
+        , EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED
+        , nullptr
+        , nullptr
+        , reinterpret_cast<LPSTARTUPINFOW>(&si)
+        , &pi);
+
+    if (!ok)
+    {
+        return false;
+    }
+
+    ::ResumeThread(pi.hThread);
+
+    ::CloseHandle(pi.hThread);
+    ::CloseHandle(pi.hProcess);
+
+    return true;
+}
+
+//------------------------------------------------------------------------------
+[[nodiscard]] bool is_protected()
+{
+    STARTUPINFOW info;
+    ::GetStartupInfoW(&info);
+
+    // we've already relaunched once
+    if (info.lpTitle == L"asari"sv)
+    {
+        return true;
+    }
+
+    PROCESS_MITIGATION_EXTENSION_POINT_DISABLE_POLICY policy;
+    if (!asr::win::GetProcessMitigationPolicy(
+          ::GetCurrentProcess()
+        , PROCESS_MITIGATION_POLICY::ProcessExtensionPointDisablePolicy
+        , &policy
+        , sizeof(policy)))
+    {
+        return false;
+    }
+
+    return !!policy.DisableExtensionPoints;
+}
+
+//------------------------------------------------------------------------------
+int launch()
+{
+    if (!is_protected())
+    {
+        return relaunch_protected();
+    }
+
+    set_process_mitigations();
+    return launch_target();
+}
+
+//------------------------------------------------------------------------------
 int __stdcall main()
 {
-    set_process_mitigations();
-    auto const result = launch_target();
-    ::TerminateProcess(::GetCurrentProcess(), static_cast<UINT>(result));
+    asr::win::get_optional_apis();
+    return ::TerminateProcess(::GetCurrentProcess(), launch());
 }

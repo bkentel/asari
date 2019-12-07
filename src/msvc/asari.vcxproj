@@ -102,7 +102,7 @@
       <ForcedIncludeFiles>$(SrcRoot)platform\pch.h</ForcedIncludeFiles>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>asari-lib.lib;opengl32.lib;imm32.lib;uuid.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>asari-lib.lib;opengl32.lib;d2d1.lib;imm32.lib;uuid.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <DelayLoadDLLs>opengl32.dll</DelayLoadDLLs>
       <ModuleDefinitionFile>$(PlatformRoot)win_exports.def</ModuleDefinitionFile>
     </Link>
@@ -111,20 +111,17 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="$(SrcRoot)pch.cpp">
-      <PrecompiledHeader>Create</PrecompiledHeader>
-    </ClCompile>
     <ClCompile Include="$(PlatformRoot)win_app.cpp" />
     <ClCompile Include="$(PlatformRoot)win_error.cpp" />
     <ClCompile Include="$(PlatformRoot)win_ime.cpp" />
     <ClCompile Include="$(PlatformRoot)win_main.cpp" />
     <ClCompile Include="$(PlatformRoot)win_renderer_direct2d.cpp" />
     <ClCompile Include="$(PlatformRoot)win_util.cpp" />
+    <ClCompile Include="$(SrcRoot)platform\pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="$(SrcRoot)app.h" />
-    <ClInclude Include="$(SrcRoot)ime.h" />
-    <ClInclude Include="$(SrcRoot)pch.h" />
     <ClInclude Include="$(PlatformRoot)win_app.h" />
     <ClInclude Include="$(PlatformRoot)win_common.h" />
     <ClInclude Include="$(PlatformRoot)win_error.h" />
@@ -132,6 +129,9 @@
     <ClInclude Include="$(PlatformRoot)win_pch.h" />
     <ClInclude Include="$(PlatformRoot)win_renderer_direct2d.h" />
     <ClInclude Include="$(PlatformRoot)win_util.h" />
+    <ClInclude Include="$(SrcRoot)platform\app.h" />
+    <ClInclude Include="$(SrcRoot)platform\ime.h" />
+    <ClInclude Include="$(SrcRoot)platform\pch.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(PlatformRoot)win_exports.def" />

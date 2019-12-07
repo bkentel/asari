@@ -1,7 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="$(SrcRoot)pch.cpp" />
     <ClCompile Include="$(PlatformRoot)win_app.cpp">
       <Filter>platform\windows</Filter>
     </ClCompile>
@@ -20,6 +19,7 @@
     <ClCompile Include="$(PlatformRoot)win_util.cpp">
       <Filter>platform\windows</Filter>
     </ClCompile>
+    <ClCompile Include="..\platform\pch.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="platform">
@@ -30,7 +30,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="$(SrcRoot)pch.h" />
     <ClInclude Include="$(PlatformRoot)win_app.h">
       <Filter>platform\windows</Filter>
     </ClInclude>
@@ -52,12 +51,13 @@
     <ClInclude Include="$(PlatformRoot)win_util.h">
       <Filter>platform\windows</Filter>
     </ClInclude>
-    <ClInclude Include="$(SrcRoot)app.h">
+    <ClInclude Include="..\platform\app.h">
       <Filter>platform</Filter>
     </ClInclude>
-    <ClInclude Include="$(SrcRoot)ime.h">
+    <ClInclude Include="..\platform\ime.h">
       <Filter>platform</Filter>
     </ClInclude>
+    <ClInclude Include="..\platform\pch.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(PlatformRoot)win_exports.def">

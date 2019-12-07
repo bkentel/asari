@@ -46,26 +46,112 @@ void log_sink(log_data const& data, void* const dummy, ...) noexcept
     va_end(args);
 }
 
-int main([[maybe_unused]] std::vector<std::string_view> const& args)
+class application_kernel final : public application_observer
 {
-    ASR_LOGA("[main] args[%zu]", args.size());
+    static auto make_application(application_kernel& instance)
+    {
+        ASR_ASSERT(instance.m_ime.get());
 
-    intial_setup();
+        application_options options {};
+        options.ime      = instance.m_ime.get();
+        options.observer = &instance;
 
-    std::unique_ptr<engine>   engine;
-    std::unique_ptr<renderer> renderer;
+        return asr::make_application(std::move(options));
+    }
 
-    auto const ime = make_input_manager();
+    static auto make_input_manager(application_kernel&)
+    {
+        return asr::make_input_manager();
+    }
+public:
+    application_kernel();
 
-    application_options app_options {};
-    app_options.ime = ime.get();
+    void start();
 
-    app_options.on_ready = [&] {
-        renderer = make_renderer({});
-        engine   = make_engine({});
+    void on_system_event(std::monostate const&) noexcept { ASR_ABORT_UNREACHABLE(); }
+
+    void on_system_event(mouse_event    const& event) noexcept;
+    void on_system_event(button_event   const& event) noexcept;
+    void on_system_event(keyboard_event const& event) noexcept;
+public:
+    // application_observer
+
+    void on_ready() noexcept override;
+
+    void on_system_event(system_event const& event) noexcept override;
+private:
+    std::atomic_bool               m_ready = false;
+
+    std::unique_ptr<engine>        m_engine;
+    std::unique_ptr<renderer>      m_renderer;
+    std::unique_ptr<input_manager> m_ime;
+    std::unique_ptr<application>   m_app;
+};
+
+application_kernel::application_kernel()
+    : m_ime(make_input_manager(*this))
+    , m_app(make_application(*this))
+{
+    m_ready = true;
+}
+
+void application_kernel::on_ready() noexcept
+{
+    ASR_ASSERT(m_ready);
+    ASR_ASSERT(!m_renderer);
+    ASR_ASSERT(!m_engine);
+
+    m_renderer = make_renderer({&m_app->get_renderer_backend()});
+    m_engine   = make_engine({});
+}
+
+void application_kernel::on_system_event(mouse_event const&) noexcept
+{
+}
+
+void application_kernel::on_system_event(button_event const&) noexcept
+{
+}
+
+void application_kernel::on_system_event(keyboard_event const& event) noexcept
+{
+    auto const is_non_printable = event.character < 0x20 || event.character >= 0x7F;
+
+    if (is_non_printable)
+    {
+        ASR_LOGA("[main] keyboard_event '0x%x'", static_cast<char>(event.character));
+    }
+    else
+    {
+        ASR_LOGA("[main] keyboard_event '%c'", static_cast<char>(event.character));
+    }
+}
+
+void application_kernel::on_system_event(system_event const& event) noexcept
+{
+    ASR_ASSERT(m_ready);
+
+    auto const visitor = [this](auto&& v) noexcept {
+        on_system_event(v);
     };
 
-    auto const app = make_application(std::move(app_options));
+    std::visit(visitor, event);
+}
+
+void application_kernel::start()
+{
+    ASR_ASSERT(m_app);
+    m_app->start();
+}
+
+int main(std::vector<std::string_view> const& args)
+{
+    intial_setup();
+
+    ASR_LOGA("[main] args[%zu]", args.size());
+
+    application_kernel kernel;
+    kernel.start();
 
     return 0;
 }
