@@ -6,6 +6,8 @@
 
 #include "common.h"
 
+#include <rtcapi.h>
+
 #include <csignal>
 
 namespace asr::win
@@ -69,7 +71,7 @@ int init(main_module_interface& out)
 {
     alloc_console();
 
-    ASR_LOGA("[win] module init %ju", out.version);
+    ASR_LOGA("[win] module init %zu", out.version);
 
     if (out.version != module_version::current)
     {
@@ -119,6 +121,8 @@ void set_fatal_handlers() noexcept
         on_failure(failure_type::abort);
     });
 
+    _set_error_mode(_OUT_TO_STDERR);
+
     std::set_terminate([]() noexcept {
         on_failure(failure_type::terminate);
     });
@@ -146,8 +150,6 @@ void set_fatal_handlers() noexcept
             , sizeof(policy));
     }
 
-    #ifdef __MSVC_RUNTIME_CHECKS
-
     _CrtSetReportMode(_CRT_WARN,   _CRTDBG_MODE_DEBUG);
     _CrtSetReportMode(_CRT_ERROR,  _CRTDBG_MODE_DEBUG);
     _CrtSetReportMode(_CRT_ASSERT, _CRTDBG_MODE_DEBUG);
@@ -157,6 +159,11 @@ void set_fatal_handlers() noexcept
         on_failure(failure_type::runtime_check);
     });
 
+    #ifdef __MSVC_RUNTIME_CHECKS
+    _RTC_Initialize();
+    _RTC_SetErrorFuncW([](auto, auto, auto, auto, auto, ...) noexcept -> int {
+        on_failure(failure_type::runtime_check);
+    });
     #endif
 }
 

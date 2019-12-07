@@ -7,7 +7,7 @@ struct _EXCEPTION_POINTERS;
 namespace asr::win
 {
 
-enum class module_version : intptr_t
+enum class module_version : size_t
 {
       v1      = 1
     , current = v1

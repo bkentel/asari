@@ -6,8 +6,17 @@
 #include <condition_variable>
 #include <mutex>
 
+namespace asr::win
+{
+
+extern void foo(void* const window);
+
+}
+
 namespace asr
 {
+
+renderer_backend::~renderer_backend() = default;
 
 renderer::~renderer() = default;
 
@@ -21,6 +30,7 @@ public:
         : m_options(std::move(options))
         , m_thread([&]() noexcept { main(); })
     {
+        ASR_ASSERT(m_options.native_target);
     }
 
     void stop() noexcept override
@@ -47,8 +57,12 @@ private:
     {
         std::unique_lock lock {m_mutex};
 
+        m_options.native_target->initialize();
+
         for (;;)
         {
+            m_options.native_target->render_frame();
+
             m_cv.wait(lock, [&]() noexcept {
                 return !m_running;
             });
