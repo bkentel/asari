@@ -6,13 +6,6 @@
 #include <condition_variable>
 #include <mutex>
 
-namespace asr::win
-{
-
-extern void foo(void* const window);
-
-}
-
 namespace asr
 {
 
@@ -55,21 +48,32 @@ public:
 private:
     void main() noexcept
     {
-        std::unique_lock lock {m_mutex};
+        auto& target = *std::invoke([&] {
+            std::scoped_lock const lock {m_mutex};
+            return m_options.native_target;
+        });
 
-        m_options.native_target->initialize();
+        target.initialize();
+        target.set_data({m_options.world});
 
-        for (;;)
+        for (unsigned i = 0; ; ++i)
         {
-            m_options.native_target->render_frame();
+            target.render_frame();
 
-            m_cv.wait(lock, [&]() noexcept {
-                return !m_running;
-            });
+            auto const n = i % 60;
 
-            if (!m_running)
+            if ((n & 0b1111u) == 0u)
             {
-                break;
+                std::scoped_lock const lock {m_mutex};
+                if (!m_running)
+                {
+                    break;
+                }
+            }
+
+            if (n == 0)
+            {
+                std::this_thread::yield();
             }
         }
     }
@@ -86,6 +90,9 @@ private:
 std::unique_ptr<renderer> make_renderer(
     renderer_options options)
 {
+    ASR_ASSERT(options.native_target);
+    ASR_ASSERT(options.world);
+
     return std::make_unique<renderer_impl>(std::move(options));
 }
 

@@ -3,6 +3,10 @@
 #include "win_common.h"
 #include "win_error.h"
 
+#include "random.h"
+
+#include "world.h"
+
 #include <d2d1.h>
 
 namespace asr::win
@@ -21,12 +25,18 @@ public:
 
     void initialize() override;
 
+    void set_data(renderer_data const& data) override;
+
     void render_frame() override;
 private:
+    pcg_engine m_engine;
+
     HWND                   m_window;
     ID2D1Factory*          m_factory       = nullptr;
     ID2D1HwndRenderTarget* m_target        = nullptr;
     ID2D1SolidColorBrush*  m_default_brush = nullptr;
+
+    renderer_data const*   m_data = nullptr;
 };
 
 void renderer_direc2d_backend::initialize()
@@ -60,17 +70,38 @@ void renderer_direc2d_backend::initialize()
     m_target->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Chocolate), &m_default_brush);
 }
 
+void renderer_direc2d_backend::set_data(renderer_data const& data)
+{
+    m_data = &data;
+}
+
 void renderer_direc2d_backend::render_frame()
 {
-    auto const r = D2D1::RectF(10, 10, 100, 100);
+    ASR_ASSERT(m_data);
 
-    m_target->BeginDraw();
+    auto const& world_data = *m_data->world;
 
-    m_target->SetTransform(D2D1::Matrix3x2F::Identity());
+    rect_u32 const region {{0, 0}, {10, 10}};
 
-    m_target->Clear(nullptr);
+    auto const& terrain_data = world_data.terrain(region);
 
-    m_target->FillRectangle(r, m_default_brush);
+    auto& target = *m_target;
+
+    target.BeginDraw();
+
+    target.SetTransform(D2D1::Matrix3x2F::Identity());
+
+    target.Clear(nullptr);
+
+    for (size_t i = 0; i < 10 * 10; ++i)
+    {
+        auto const x = i % 10;
+        auto const y = i / 10;
+
+        auto const r = D2D1::RectF(x * 32, y * 32, (x + 1) * 32, (y + 1) * 32);
+
+        target.FillRectangle(r, m_default_brush);
+    }
 
     D2D1_TAG tag1 {};
     D2D1_TAG tag2 {};
