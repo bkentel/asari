@@ -5,6 +5,8 @@
 #include "platform/ime.h"
 #include "platform/app.h"
 
+#include "world.h"
+
 namespace asr
 {
 
@@ -83,14 +85,16 @@ private:
     std::atomic_bool               m_ready = false;
 
     std::unique_ptr<engine>        m_engine;
-    std::unique_ptr<renderer>      m_renderer;
     std::unique_ptr<input_manager> m_ime;
     std::unique_ptr<application>   m_app;
+    std::unique_ptr<world>         m_world;
+    std::unique_ptr<renderer>      m_renderer;
 };
 
 application_kernel::application_kernel()
     : m_ime(make_input_manager(*this))
     , m_app(make_application(*this))
+    , m_world(make_world())
 {
     m_ready = true;
 }
@@ -101,7 +105,7 @@ void application_kernel::on_ready() noexcept
     ASR_ASSERT(!m_renderer);
     ASR_ASSERT(!m_engine);
 
-    m_renderer = make_renderer({&m_app->get_renderer_backend()});
+    m_renderer = make_renderer({&m_app->get_renderer_backend(), m_world.get()});
     m_engine   = make_engine({});
 }
 

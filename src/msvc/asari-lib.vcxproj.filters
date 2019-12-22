@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="$(SrcRoot)engine.cpp" />
+    <ClCompile Include="$(SrcRoot)main.cpp" />
+    <ClCompile Include="$(SrcRoot)pch.cpp" />
+    <ClCompile Include="$(SrcRoot)renderer.cpp" />
+    <ClCompile Include="..\random.cpp" />
+    <ClCompile Include="..\world.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(SrcRoot)common.h" />
+    <ClInclude Include="$(SrcRoot)config.h" />
+    <ClInclude Include="$(SrcRoot)engine.h" />
+    <ClInclude Include="$(SrcRoot)pch.h" />
+    <ClInclude Include="$(SrcRoot)renderer.h" />
+    <ClInclude Include="$(SrcRoot)string_utils.h" />
+    <ClInclude Include="..\detail\random_pcg.h">
+      <Filter>detail</Filter>
+    </ClInclude>
+    <ClInclude Include="..\world.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="detail">
+      <UniqueIdentifier>{67ea64cf-d330-4eb9-afcc-953b29a942d4}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

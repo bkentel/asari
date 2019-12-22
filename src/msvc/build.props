@@ -31,6 +31,8 @@
       <PreprocessorDefinitions>
         STRICT;
         NOMINMAX;
+        _STL_WIN32_WINNT=0x601;
+        _ONECORE;
         _CRT_STDIO_ISO_WIDE_SPECIFIERS;
         %(PreprocessorDefinitions)
       </PreprocessorDefinitions>

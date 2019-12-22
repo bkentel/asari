@@ -5,6 +5,13 @@
 namespace asr
 {
 
+class world;
+
+struct renderer_data
+{
+    world const* world;
+};
+
 class renderer_backend
 {
 public:
@@ -12,12 +19,16 @@ public:
 
     virtual void initialize() = 0;
 
+    virtual void set_data(renderer_data const& data) = 0;
+
     virtual void render_frame() = 0;
 };
 
 struct renderer_options
 {
     renderer_backend* native_target;
+
+    world const* world;
 };
 
 class renderer

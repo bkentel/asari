@@ -111,6 +111,9 @@
     <ClInclude Include="$(SrcRoot)pch.h" />
     <ClInclude Include="$(SrcRoot)renderer.h" />
     <ClInclude Include="$(SrcRoot)string_utils.h" />
+    <ClInclude Include="..\detail\random_pcg.h" />
+    <ClInclude Include="..\random.h" />
+    <ClInclude Include="..\world.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(SrcRoot)engine.cpp" />
@@ -119,6 +122,8 @@
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="$(SrcRoot)renderer.cpp" />
+    <ClCompile Include="..\random.cpp" />
+    <ClCompile Include="..\world.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
